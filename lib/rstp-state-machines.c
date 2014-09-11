@@ -117,6 +117,18 @@ process_received_bpdu__(struct rstp_port *p, const void *bpdu,
     if (p->rcvd_bpdu) {
         return;
     }
+    /* [9.2.9 Encoding of Port Role values]
+     * NOTE.If the Unknown value of the Port Role parameter is received, the
+     * state machines will effectively treat the RST BPDU as if it were a
+     * Configuration BPDU.
+     */
+    uint8_t role = ((((struct rstp_bpdu *)bpdu)->flags) & ROLE_FLAG_MASK)
+                   >> ROLE_FLAG_SHIFT;
+    if (role == PORT_UNKN &&
+            ((struct rstp_bpdu *)bpdu)->bpdu_type ==  RAPID_SPANNING_TREE_BPDU)
+    {
+        ((struct rstp_bpdu *)bpdu)->bpdu_type = CONFIGURATION_BPDU;
+    }
     if (validate_received_bpdu(p, bpdu, bpdu_size) == 0) {
         p->rcvd_bpdu = true;
         p->rx_rstp_bpdu_cnt++;
