@@ -1398,6 +1398,9 @@ port_configure_rstp(const struct ofproto *ofproto, struct port *port,
         port_s->admin_p2p_mac_state =  RSTP_ADMIN_P2P_MAC_FORCE_TRUE;
     }
 
+    port_s->admin_port_state = smap_get_bool(&port->cfg->other_config,
+                                             "rstp-admin-port-state", true);
+
     port_s->admin_edge_port = smap_get_bool(&port->cfg->other_config,
                                             "rstp-port-admin-edge", false);
     port_s->auto_edge = smap_get_bool(&port->cfg->other_config,

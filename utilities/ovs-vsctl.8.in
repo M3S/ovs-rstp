@@ -1078,6 +1078,10 @@ Acceptable values are 0 (force false), 1 (force true) or 2 (auto).
 .IP
 .B "ovs\-vsctl set Port eth0 other_config:rstp-admin-p2p-mac=1"
 .PP
+Set the admin port state value of port \fBeth0\fR.
+.IP
+.B "ovs\-vsctl set Port eth0 other_config:rstp-admin-port-state=true"
+.PP
 Set the mcheck value of port \fBeth0\fR:
 .IP
 .B "ovs\-vsctl set Port eth0 other_config:rstp-port-mcheck=true"
