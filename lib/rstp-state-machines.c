@@ -1113,12 +1113,10 @@ port_information_sm(struct rstp_port *p)
     old_state = p->port_information_sm_state;
     r = p->rstp;
 
-    if (!p->port_enabled && p->info_is != INFO_IS_DISABLED) {
-        p->port_information_sm_state = PORT_INFORMATION_SM_DISABLED_EXEC;
-    }
     switch (p->port_information_sm_state) {
     case PORT_INFORMATION_SM_INIT:
-        if (r->begin) {
+        if (r->begin
+            || (!p->port_enabled && p->info_is != INFO_IS_DISABLED)) {
             p->port_information_sm_state = PORT_INFORMATION_SM_DISABLED_EXEC;
         }
         break;
@@ -1132,6 +1130,11 @@ port_information_sm(struct rstp_port *p)
         p->port_information_sm_state = PORT_INFORMATION_SM_DISABLED;
         /* no break */
     case PORT_INFORMATION_SM_DISABLED:
+        /* Global transition. */
+        if (!p->port_enabled && p->info_is != INFO_IS_DISABLED) {
+            p->port_information_sm_state = PORT_INFORMATION_SM_DISABLED_EXEC;
+            break;
+        }
         if (p->port_enabled) {
             p->port_information_sm_state = PORT_INFORMATION_SM_AGED_EXEC;
         }
@@ -1146,6 +1149,11 @@ port_information_sm(struct rstp_port *p)
         p->port_information_sm_state = PORT_INFORMATION_SM_AGED;
         /* no break */
     case PORT_INFORMATION_SM_AGED:
+        /* Global transition. */
+        if (!p->port_enabled && p->info_is != INFO_IS_DISABLED) {
+            p->port_information_sm_state = PORT_INFORMATION_SM_DISABLED_EXEC;
+            break;
+        }
         if (p->selected && p->updt_info) {
             p->port_information_sm_state = PORT_INFORMATION_SM_UPDATE_EXEC;
         }
@@ -1170,12 +1178,22 @@ port_information_sm(struct rstp_port *p)
         p->port_information_sm_state = PORT_INFORMATION_SM_UPDATE;
         /* no break */
     case PORT_INFORMATION_SM_UPDATE:
+        /* Global transition. */
+        if (!p->port_enabled && p->info_is != INFO_IS_DISABLED) {
+            p->port_information_sm_state = PORT_INFORMATION_SM_DISABLED_EXEC;
+            break;
+        }
         p->port_information_sm_state = PORT_INFORMATION_SM_CURRENT_EXEC;
         break;
     case PORT_INFORMATION_SM_CURRENT_EXEC:
         p->port_information_sm_state = PORT_INFORMATION_SM_CURRENT;
         /* no break */
     case PORT_INFORMATION_SM_CURRENT:
+        /* Global transition. */
+        if (!p->port_enabled && p->info_is != INFO_IS_DISABLED) {
+            p->port_information_sm_state = PORT_INFORMATION_SM_DISABLED_EXEC;
+            break;
+        }
         if (p->rcvd_msg && !p->updt_info) {
             p->port_information_sm_state = PORT_INFORMATION_SM_RECEIVE_EXEC;
         }
@@ -1193,6 +1211,11 @@ port_information_sm(struct rstp_port *p)
         p->port_information_sm_state = PORT_INFORMATION_SM_RECEIVE;
         /* no break */
     case PORT_INFORMATION_SM_RECEIVE:
+        /* Global transition. */
+        if (!p->port_enabled && p->info_is != INFO_IS_DISABLED) {
+            p->port_information_sm_state = PORT_INFORMATION_SM_DISABLED_EXEC;
+            break;
+        }
         switch (p->rcvd_info) {
         case SUPERIOR_DESIGNATED_INFO:
             p->port_information_sm_state =
@@ -1223,6 +1246,11 @@ port_information_sm(struct rstp_port *p)
         p->port_information_sm_state = PORT_INFORMATION_SM_OTHER;
         /* no break */
     case PORT_INFORMATION_SM_OTHER:
+        /* Global transition. */
+        if (!p->port_enabled && p->info_is != INFO_IS_DISABLED) {
+            p->port_information_sm_state = PORT_INFORMATION_SM_DISABLED_EXEC;
+            break;
+        }
         p->port_information_sm_state = PORT_INFORMATION_SM_CURRENT_EXEC;
         break;
     case PORT_INFORMATION_SM_NOT_DESIGNATED_EXEC:
@@ -1232,6 +1260,11 @@ port_information_sm(struct rstp_port *p)
         p->port_information_sm_state = PORT_INFORMATION_SM_NOT_DESIGNATED;
         /* no break */
     case PORT_INFORMATION_SM_NOT_DESIGNATED:
+        /* Global transition. */
+        if (!p->port_enabled && p->info_is != INFO_IS_DISABLED) {
+            p->port_information_sm_state = PORT_INFORMATION_SM_DISABLED_EXEC;
+            break;
+        }
         p->port_information_sm_state = PORT_INFORMATION_SM_CURRENT_EXEC;
         break;
     case PORT_INFORMATION_SM_INFERIOR_DESIGNATED_EXEC:
@@ -1240,6 +1273,11 @@ port_information_sm(struct rstp_port *p)
         p->port_information_sm_state = PORT_INFORMATION_SM_INFERIOR_DESIGNATED;
         /* no break */
     case PORT_INFORMATION_SM_INFERIOR_DESIGNATED:
+        /* Global transition. */
+        if (!p->port_enabled && p->info_is != INFO_IS_DISABLED) {
+            p->port_information_sm_state = PORT_INFORMATION_SM_DISABLED_EXEC;
+            break;
+        }
         p->port_information_sm_state = PORT_INFORMATION_SM_CURRENT_EXEC;
         break;
     case PORT_INFORMATION_SM_REPEATED_DESIGNATED_EXEC:
@@ -1250,6 +1288,11 @@ port_information_sm(struct rstp_port *p)
         p->port_information_sm_state = PORT_INFORMATION_SM_REPEATED_DESIGNATED;
         /* no break */
     case PORT_INFORMATION_SM_REPEATED_DESIGNATED:
+        /* Global transition. */
+        if (!p->port_enabled && p->info_is != INFO_IS_DISABLED) {
+            p->port_information_sm_state = PORT_INFORMATION_SM_DISABLED_EXEC;
+            break;
+        }
         p->port_information_sm_state = PORT_INFORMATION_SM_CURRENT_EXEC;
         break;
     case PORT_INFORMATION_SM_SUPERIOR_DESIGNATED_EXEC:
@@ -1268,6 +1311,11 @@ port_information_sm(struct rstp_port *p)
         p->port_information_sm_state = PORT_INFORMATION_SM_SUPERIOR_DESIGNATED;
         /* no break */
     case PORT_INFORMATION_SM_SUPERIOR_DESIGNATED:
+        /* Global transition. */
+        if (!p->port_enabled && p->info_is != INFO_IS_DISABLED) {
+            p->port_information_sm_state = PORT_INFORMATION_SM_DISABLED_EXEC;
+            break;
+        }
         p->port_information_sm_state = PORT_INFORMATION_SM_CURRENT_EXEC;
         break;
     default:
