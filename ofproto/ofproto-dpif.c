@@ -3155,9 +3155,10 @@ port_run(struct ofport_dpif *ofport)
         struct ofproto_dpif *ofproto = ofproto_dpif_cast(ofport->up.ofproto);
 
         ofproto->backer->need_revalidate = REV_PORT_TOGGLED;
-    }
-    if (ofport->rstp_port) {
-        rstp_port_set_mac_operational(ofport->rstp_port, enable);
+
+        if (ofport->rstp_port) {
+            rstp_port_set_mac_operational(ofport->rstp_port, enable);
+        }
     }
 
     ofport->may_enable = enable;
