@@ -1404,7 +1404,7 @@ port_configure_rstp(const struct ofproto *ofproto, struct port *port,
     port_s->admin_edge_port = smap_get_bool(&port->cfg->other_config,
                                             "rstp-port-admin-edge", false);
     port_s->auto_edge = smap_get_bool(&port->cfg->other_config,
-                                      "rstp-port-auto-edge", true);
+                                      "rstp-port-auto-edge", false);
     port_s->mcheck = smap_get_bool(&port->cfg->other_config,
                                    "rstp-port-mcheck", false);
 }
