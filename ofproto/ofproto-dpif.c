@@ -2089,7 +2089,9 @@ update_rstp_port_state(struct ofport_dpif *ofport)
         if (rstp_learn_in_state(ofport->rstp_state)
                 != rstp_learn_in_state(state)) {
             /* xxx Learning action flows should also be flushed. */
-            bundle_flush_macs(ofport->bundle, false);
+            if (ofport->bundle) {
+                bundle_flush_macs(ofport->bundle, false);
+            }
         }
         fwd_change = rstp_forward_in_state(ofport->rstp_state)
             != rstp_forward_in_state(state);
