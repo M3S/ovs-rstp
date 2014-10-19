@@ -1795,11 +1795,6 @@ port_role_transition_sm(struct rstp_port *p)
             break;
         }
         if (p->selected && !p->updt_info) {
-            if (p->rb_while != 2 * p->designated_times.hello_time
-                && p->role == ROLE_BACKUP) {
-                p->port_role_transition_sm_state =
-                    PORT_ROLE_TRANSITION_SM_BACKUP_PORT_EXEC;
-            }
             if ((p->fd_while != forward_delay(p)) || p->sync
                        || p->re_root || !p->synced) {
                 p->port_role_transition_sm_state =
@@ -1813,6 +1808,11 @@ port_role_transition_sm(struct rstp_port *p)
                        || (p->proposed && p->agree)) {
                 p->port_role_transition_sm_state =
                     PORT_ROLE_TRANSITION_SM_ALTERNATE_AGREED_EXEC;
+            }
+            if (p->rb_while != 2 * p->designated_times.hello_time
+                    && p->role == ROLE_BACKUP) {
+                p->port_role_transition_sm_state =
+                    PORT_ROLE_TRANSITION_SM_BACKUP_PORT_EXEC;
             }
         }
         break;
