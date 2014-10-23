@@ -2509,6 +2509,12 @@ port_refresh_rstp_status(struct port *port)
                     rstp_port_role_name(status.role));
     smap_add_format(&smap, "rstp_port_state", "%s",
                     rstp_state_name(status.state));
+    smap_add_format(&smap, "rstp_designated_bridge_id", RSTP_ID_FMT,
+                    RSTP_ID_ARGS(status.designated_bridge_id));
+    smap_add_format(&smap, "rstp_designated_port_id", RSTP_PORT_ID_FMT,
+                    status.designated_port_id);
+    smap_add_format(&smap, "rstp_designated_path_cost", "%d",
+                    status.designated_path_cost);
 
     ovsrec_port_set_rstp_status(port->cfg, &smap);
     smap_destroy(&smap);
