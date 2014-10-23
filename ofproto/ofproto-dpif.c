@@ -141,6 +141,7 @@ static void bundle_del_port(struct ofport_dpif *);
 static void bundle_run(struct ofbundle *);
 static void bundle_wait(struct ofbundle *);
 static void bundle_flush_macs(struct ofbundle *, bool);
+static void bundle_move(struct ofbundle *, struct ofbundle *);
 
 static void stp_run(struct ofproto_dpif *ofproto);
 static void stp_wait(struct ofproto_dpif *ofproto);
@@ -2096,11 +2097,15 @@ update_rstp_port_state(struct ofport_dpif *ofport)
                  netdev_get_name(ofport->up.netdev),
                  rstp_state_name(ofport->rstp_state),
                  rstp_state_name(state));
+
         if (rstp_learn_in_state(ofport->rstp_state)
                 != rstp_learn_in_state(state)) {
             /* xxx Learning action flows should also be flushed. */
             if (ofport->bundle) {
-                bundle_flush_macs(ofport->bundle, false);
+                if(!rstp_shift_root_learned_address(ofproto->rstp)
+                    || ofport != rstp_get_old_root_aux(ofproto->rstp)) {
+                    bundle_flush_macs(ofport->bundle, false);
+                }
             }
         }
         fwd_change = rstp_forward_in_state(ofport->rstp_state)
@@ -2147,8 +2152,21 @@ rstp_run(struct ofproto_dpif *ofproto)
          * p->fdb_flush) and not periodically.
          */
         while ((ofport = rstp_check_and_reset_fdb_flush(ofproto->rstp, &rp))) {
-            bundle_flush_macs(ofport->bundle, false);
+            if (!rstp_shift_root_learned_address(ofproto->rstp)
+                || ofport != rstp_get_old_root_aux(ofproto->rstp)) {
+                bundle_flush_macs(ofport->bundle, false);
+            }
         }
+
+        struct ofport_dpif *old_root;
+        struct ofport_dpif *new_root;
+        if (rstp_shift_root_learned_address(ofproto->rstp)) {
+            old_root = rstp_get_old_root_aux(ofproto->rstp);
+            new_root = rstp_get_new_root_aux(ofproto->rstp);
+            bundle_move(old_root->bundle, new_root->bundle);
+            rstp_reset_root_changed(ofproto->rstp);
+        }
+
     }
 }
 
@@ -2493,6 +2511,23 @@ bundle_flush_macs(struct ofbundle *bundle, bool all_ofprotos)
         }
     }
     ovs_rwlock_unlock(&ml->rwlock);
+}
+
+static void bundle_move(struct ofbundle *old, struct ofbundle *new) {
+    struct ofproto_dpif *old_ofproto = old->ofproto;
+    struct ofproto_dpif *new_ofproto = new->ofproto;
+    struct mac_learning *old_ml = old_ofproto->ml;
+    struct mac_entry *mac, *next_mac;
+
+    old_ofproto->backer->need_revalidate = REV_RECONFIGURE;
+    new_ofproto->backer->need_revalidate = REV_RECONFIGURE;
+    ovs_rwlock_wrlock(&old_ml->rwlock);
+    LIST_FOR_EACH_SAFE (mac, next_mac, lru_node, &old_ml->lrus) {
+        if (mac->port.p == old) {
+            mac->port.p = new;
+        }
+    }
+    ovs_rwlock_unlock(&old_ml->rwlock);
 }
 
 static struct ofbundle *

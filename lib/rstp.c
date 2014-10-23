@@ -867,6 +867,42 @@ out:
     return aux;
 }
 
+bool
+rstp_shift_root_learned_address(struct rstp *rstp) {
+    bool ret = false;
+    ovs_mutex_lock(&rstp_mutex);
+    if (rstp->root_changed) {
+        ret = true;
+    }
+    ovs_mutex_unlock(&rstp_mutex);
+    return ret;
+}
+
+void *
+rstp_get_old_root_aux(struct rstp *rstp) {
+    void *aux = NULL;
+    ovs_mutex_lock(&rstp_mutex);
+    aux = rstp->old_root_aux;
+    ovs_mutex_unlock(&rstp_mutex);
+    return aux;
+}
+
+void *
+rstp_get_new_root_aux(struct rstp *rstp) {
+    void *aux = NULL;
+    ovs_mutex_lock(&rstp_mutex);
+    aux = rstp->new_root_aux;
+    ovs_mutex_unlock(&rstp_mutex);
+    return aux;
+}
+
+void
+rstp_reset_root_changed(struct rstp *rstp) {
+    ovs_mutex_lock(&rstp_mutex);
+    rstp->root_changed = false;
+    ovs_mutex_unlock(&rstp_mutex);
+}
+
 /* Returns the port in 'rstp' with number 'port_number'.
  *
  * XXX: May only be called while concurrent deletion of ports is excluded. */
@@ -878,8 +914,7 @@ rstp_get_port__(struct rstp *rstp, uint16_t port_number)
 
     ovs_assert(rstp && port_number > 0 && port_number <= RSTP_MAX_PORTS);
 
-    HMAP_FOR_EACH_WITH_HASH (port, node, hash_int(port_number, 0),
-                             &rstp->ports) {
+    HMAP_FOR_EACH (port, node, &rstp->ports) {
         if (port->port_number == port_number) {
             return port;
         }
@@ -901,16 +936,14 @@ rstp_get_port(struct rstp *rstp, uint16_t port_number)
 
 void *
 rstp_get_port_aux(struct rstp *rstp, uint16_t port_number)
-    OVS_EXCLUDED(rstp_mutex)
+    OVS_REQUIRES(rstp_mutex)
 {
     struct rstp_port *p;
-    void *aux;
-
-    ovs_mutex_lock(&rstp_mutex);
     p = rstp_get_port__(rstp, port_number);
-    aux = p->aux;
-    ovs_mutex_unlock(&rstp_mutex);
-    return aux;
+    if (p) {
+        return p->aux;
+    }
+    return NULL;
 }
 
 /* Updates the port_enabled parameter. */
