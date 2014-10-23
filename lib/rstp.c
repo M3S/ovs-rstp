@@ -110,6 +110,9 @@ static void rstp_port_set_admin_edge__(struct rstp_port *, bool admin_edge)
     OVS_REQUIRES(rstp_mutex);
 static void rstp_port_set_auto_edge__(struct rstp_port *, bool auto_edge)
     OVS_REQUIRES(rstp_mutex);
+static void rstp_port_set_admin_point_to_point_mac__(struct rstp_port *,
+        enum rstp_admin_point_to_point_mac_state admin_p2p_mac_state)
+    OVS_REQUIRES(rstp_mutex);
 static void rstp_port_set_mcheck__(struct rstp_port *, bool mcheck)
     OVS_REQUIRES(rstp_mutex);
 static void reinitialize_port__(struct rstp_port *p)
@@ -922,6 +925,8 @@ rstp_port_set_administrative_bridge_port__(struct rstp_port *p,
                                            uint8_t admin_port_state)
     OVS_REQUIRES(rstp_mutex)
 {
+    VLOG_DBG("%s, port %u: set RSTP port admin-port-state to %d",
+             p->rstp->name, p->port_number, admin_port_state);
     if (admin_port_state == RSTP_ADMIN_BRIDGE_PORT_STATE_DISABLED
         || admin_port_state == RSTP_ADMIN_BRIDGE_PORT_STATE_ENABLED) {
 
@@ -1120,6 +1125,27 @@ rstp_port_set_auto_edge__(struct rstp_port *port, bool auto_edge)
     }
 }
 
+/* Sets the port admin_point_to_point_mac parameter. */
+static void rstp_port_set_admin_point_to_point_mac__(struct rstp_port *port,
+        enum rstp_admin_point_to_point_mac_state admin_p2p_mac_state)
+    OVS_REQUIRES(rstp_mutex)
+{
+    VLOG_DBG("%s, port %u: set RSTP port admin-point-to-point-mac to %d",
+            port->rstp->name, port->port_number, admin_p2p_mac_state);
+    if (admin_p2p_mac_state == RSTP_ADMIN_P2P_MAC_FORCE_TRUE) {
+        port->admin_point_to_point_mac =  admin_p2p_mac_state;
+        rstp_port_set_oper_point_to_point_mac__(port,
+                RSTP_OPER_P2P_MAC_STATE_ENABLED);
+    } else if (admin_p2p_mac_state == RSTP_ADMIN_P2P_MAC_FORCE_FALSE) {
+        port->admin_point_to_point_mac =  admin_p2p_mac_state;
+        rstp_port_set_oper_point_to_point_mac__(port,
+                RSTP_OPER_P2P_MAC_STATE_DISABLED);
+    } else if (admin_p2p_mac_state == RSTP_ADMIN_P2P_MAC_AUTO) {
+        port->admin_point_to_point_mac = admin_p2p_mac_state;
+        /* FIXME fix auto behaviour */
+    }
+}
+
 /* Sets the port mcheck parameter.
  * [17.19.13] May be set by management to force the Port Protocol Migration
  * state machine to transmit RST BPDUs for a MigrateTime (17.13.9) period, to
@@ -1289,7 +1315,8 @@ rstp_port_get_status(const struct rstp_port *p, uint16_t *id,
 void
 rstp_port_set(struct rstp_port *port, uint16_t port_num, int priority,
               uint32_t path_cost, bool is_admin_edge, bool is_auto_edge,
-              bool do_mcheck, void *aux)
+              enum rstp_admin_point_to_point_mac_state admin_p2p_mac_state,
+              bool admin_port_state, bool do_mcheck, void *aux)
     OVS_EXCLUDED(rstp_mutex)
 {
     ovs_mutex_lock(&rstp_mutex);
@@ -1299,6 +1326,8 @@ rstp_port_set(struct rstp_port *port, uint16_t port_num, int priority,
     rstp_port_set_path_cost__(port, path_cost);
     rstp_port_set_admin_edge__(port, is_admin_edge);
     rstp_port_set_auto_edge__(port, is_auto_edge);
+    rstp_port_set_admin_point_to_point_mac__(port, admin_p2p_mac_state);
+    rstp_port_set_administrative_bridge_port__(port, admin_port_state);
     rstp_port_set_mcheck__(port, do_mcheck);
     ovs_mutex_unlock(&rstp_mutex);
 }
