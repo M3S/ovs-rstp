@@ -754,8 +754,11 @@ record_dispute(struct rstp_port *p)
     OVS_REQUIRES(rstp_mutex)
 {
     if ((p->received_bpdu_buffer.flags & BPDU_FLAG_LEARNING) != 0) {
-        p->agreed = true;
-        p->proposing = false;
+        /* 802.1D-2004 says to set the agreed flag and to clear the proposing
+         * flag. 802.1q-2008 instead says to set the disputed variable and to
+         * clear the agreed variable. */
+        p->disputed = true;
+        p->agreed = false;
     }
 }
 
@@ -1133,6 +1136,7 @@ port_information_sm(struct rstp_port *p)
 {
     enum port_information_state_machine old_state;
     struct rstp *r;
+    struct rstp_port *p1;
 
     old_state = p->port_information_sm_state;
     r = p->rstp;
@@ -1236,6 +1240,18 @@ port_information_sm(struct rstp_port *p)
         }
         switch (p->rcvd_info) {
         case SUPERIOR_DESIGNATED_INFO:
+            /* 802.1q-2008 has a checkBPDUConsistency() function, called on a
+             * BPDU reception. checkBPDUConsistency() clears the agreed
+             * variable if the received message priority vector is superior to
+             * the port priority vector, the BPDU is an ST BPDU or an RST BPDU,
+             * its port role is Designated and its Learning flag is set. */
+            if ((p->received_bpdu_buffer.flags & BPDU_FLAG_LEARNING) != 0) {
+                HMAP_FOR_EACH (p1, node, &r->ports) {
+                    if (p1->port_number != p->port_number) {
+                        p1->agreed = false;
+                    }
+                }
+            }
             p->port_information_sm_state =
                 PORT_INFORMATION_SM_SUPERIOR_DESIGNATED_EXEC;
             break;
@@ -1301,6 +1317,9 @@ port_information_sm(struct rstp_port *p)
     case PORT_INFORMATION_SM_REPEATED_DESIGNATED_EXEC:
         record_proposal(p);
         set_tc_flags(p);
+        /* This record_agreement() is missing in 802.1D-2004, but it's present
+         * in 802.1q-2008. */
+        record_agreement(p);
         updt_rcvd_info_while(p);
         p->rcvd_msg = false;
         p->port_information_sm_state = PORT_INFORMATION_SM_REPEATED_DESIGNATED;
@@ -1319,6 +1338,10 @@ port_information_sm(struct rstp_port *p)
         set_tc_flags(p);
         /* RECEIVED is not specified in Standard 802.1D-2004. */
         p->agree = p->agree && better_or_same_info(p, RECEIVED);
+        /* This record_agreement() and the synced assignment are  missing in
+         * 802.1D-2004, but they're present in 802.1q-2008. */
+        record_agreement(p);
+        p->synced = p->synced && p->agreed;
         record_priority(p);
         record_times(p);
         updt_rcvd_info_while(p);
