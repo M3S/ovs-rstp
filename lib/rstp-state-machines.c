@@ -581,12 +581,12 @@ port_protocol_migration_sm(struct rstp_port *p)
             PORT_PROTOCOL_MIGRATION_SM_CHECKING_RSTP;
         /* no break */
     case PORT_PROTOCOL_MIGRATION_SM_CHECKING_RSTP:
-        if (p->mdelay_while == 0) {
-            p->port_protocol_migration_sm_state =
-                PORT_PROTOCOL_MIGRATION_SM_SENSING_EXEC;
-        } else if ((p->mdelay_while != r->migrate_time) && !p->port_enabled) {
+        if ((p->mdelay_while != r->migrate_time) && !p->port_enabled) {
             p->port_protocol_migration_sm_state =
                 PORT_PROTOCOL_MIGRATION_SM_CHECKING_RSTP_EXEC;
+        } else if (p->mdelay_while == 0) {
+            p->port_protocol_migration_sm_state =
+                PORT_PROTOCOL_MIGRATION_SM_SENSING_EXEC;
         }
         break;
     case PORT_PROTOCOL_MIGRATION_SM_SELECTING_STP_EXEC:
@@ -608,13 +608,13 @@ port_protocol_migration_sm(struct rstp_port *p)
             PORT_PROTOCOL_MIGRATION_SM_SENSING;
         /* no break */
     case PORT_PROTOCOL_MIGRATION_SM_SENSING:
-        if (!p->port_enabled || p->mcheck || ((r->rstp_version) &&
+        if (p->send_rstp && p->rcvd_stp) {
+            p->port_protocol_migration_sm_state =
+                PORT_PROTOCOL_MIGRATION_SM_SELECTING_STP_EXEC;
+        } else if (!p->port_enabled || p->mcheck || ((r->rstp_version) &&
                                               !p->send_rstp && p->rcvd_rstp)) {
             p->port_protocol_migration_sm_state =
                 PORT_PROTOCOL_MIGRATION_SM_CHECKING_RSTP_EXEC;
-        } else if (p->send_rstp && p->rcvd_stp) {
-            p->port_protocol_migration_sm_state =
-                PORT_PROTOCOL_MIGRATION_SM_SELECTING_STP_EXEC;
         }
         break;
     default:
@@ -971,23 +971,23 @@ port_transmit_sm(struct rstp_port *p)
     case PORT_TRANSMIT_SM_IDLE:
         if (p->role == ROLE_DISABLED) {
             VLOG_DBG("%s, port %u: port_transmit_sm ROLE == DISABLED.",
-                     p->rstp->name, p->port_number);
+                    p->rstp->name, p->port_number);
             break;
-        } else if (p->send_rstp && p->new_info
-                   && p->tx_count < r->transmit_hold_count
-                   && p->hello_when != 0 && p->selected && !p->updt_info) {
-            p->port_transmit_sm_state = PORT_TRANSMIT_SM_TRANSMIT_RSTP_EXEC;
-        } else if (p->hello_when == 0 && p->selected && !p->updt_info) {
-            p->port_transmit_sm_state =
-                PORT_TRANSMIT_SM_TRANSMIT_PERIODIC_EXEC;
-        } else if (!p->send_rstp && p->new_info && p->role == ROLE_ROOT
-                   && p->tx_count < r->transmit_hold_count
-                   && p->hello_when != 0 && p->selected && !p->updt_info) {
-            p->port_transmit_sm_state = PORT_TRANSMIT_SM_TRANSMIT_TCN_EXEC;
         } else if (!p->send_rstp && p->new_info && p->role == ROLE_DESIGNATED
                    && p->tx_count < r->transmit_hold_count
                    && p->hello_when != 0 && p->selected && !p->updt_info) {
             p->port_transmit_sm_state = PORT_TRANSMIT_SM_TRANSMIT_CONFIG_EXEC;
+        } else if (!p->send_rstp && p->new_info && p->role == ROLE_ROOT
+                   && p->tx_count < r->transmit_hold_count
+                   && p->hello_when != 0 && p->selected && !p->updt_info) {
+            p->port_transmit_sm_state = PORT_TRANSMIT_SM_TRANSMIT_TCN_EXEC;
+        } else if (p->hello_when == 0 && p->selected && !p->updt_info) {
+            p->port_transmit_sm_state =
+                PORT_TRANSMIT_SM_TRANSMIT_PERIODIC_EXEC;
+        } else if (p->send_rstp && p->new_info
+                   && p->tx_count < r->transmit_hold_count
+                   && p->hello_when != 0 && p->selected && !p->updt_info) {
+            p->port_transmit_sm_state = PORT_TRANSMIT_SM_TRANSMIT_RSTP_EXEC;
         }
         break;
     case PORT_TRANSMIT_SM_TRANSMIT_CONFIG_EXEC:
@@ -1162,10 +1162,10 @@ port_information_sm(struct rstp_port *p)
         if (!p->port_enabled && p->info_is != INFO_IS_DISABLED) {
             /* Global transition. */
             p->port_information_sm_state = PORT_INFORMATION_SM_DISABLED_EXEC;
-        } else if (p->port_enabled) {
-            p->port_information_sm_state = PORT_INFORMATION_SM_AGED_EXEC;
         } else if (p->rcvd_msg) {
             p->port_information_sm_state = PORT_INFORMATION_SM_DISABLED_EXEC;
+        } else if (p->port_enabled) {
+            p->port_information_sm_state = PORT_INFORMATION_SM_AGED_EXEC;
         }
         break;
     case PORT_INFORMATION_SM_AGED_EXEC:
@@ -1216,14 +1216,14 @@ port_information_sm(struct rstp_port *p)
         if (!p->port_enabled && p->info_is != INFO_IS_DISABLED) {
             /* Global transition. */
             p->port_information_sm_state = PORT_INFORMATION_SM_DISABLED_EXEC;
-        } else if (p->rcvd_msg && !p->updt_info) {
-            p->port_information_sm_state = PORT_INFORMATION_SM_RECEIVE_EXEC;
+        } else if ((p->info_is == INFO_IS_RECEIVED) &&
+                (p->rcvd_info_while == 0) && !p->updt_info &&
+                !p->rcvd_msg) {
+            p->port_information_sm_state = PORT_INFORMATION_SM_AGED_EXEC;
         } else if (p->selected && p->updt_info) {
             p->port_information_sm_state = PORT_INFORMATION_SM_UPDATE_EXEC;
-        } else if ((p->info_is == INFO_IS_RECEIVED) &&
-                   (p->rcvd_info_while == 0) && !p->updt_info &&
-                   !p->rcvd_msg) {
-            p->port_information_sm_state = PORT_INFORMATION_SM_AGED_EXEC;
+        } else if (p->rcvd_msg && !p->updt_info) {
+            p->port_information_sm_state = PORT_INFORMATION_SM_RECEIVE_EXEC;
         }
         break;
     case PORT_INFORMATION_SM_RECEIVE_EXEC:
@@ -1576,19 +1576,18 @@ port_role_transition_sm(struct rstp_port *p)
         if (check_selected_role_change(p, ROLE_ROOT)) {
             /* Global transition. */
         } else if (p->selected && !p->updt_info) {
-            if (p->rr_while != p->designated_times.forward_delay) {
+            if (!p->forward && !p->re_root) {
                 p->port_role_transition_sm_state =
-                    PORT_ROLE_TRANSITION_SM_ROOT_PORT_EXEC;
+                    PORT_ROLE_TRANSITION_SM_REROOT_EXEC;
                 break;
-            } else if (p->re_root && p->forward) {
+            } else if (p->proposed && !p->agree) {
                 p->port_role_transition_sm_state =
-                    PORT_ROLE_TRANSITION_SM_REROOTED_EXEC;
+                    PORT_ROLE_TRANSITION_SM_ROOT_PROPOSED_EXEC;
                 break;
-            } else if ((p->fd_while == 0
-                        || ((re_rooted(p) && p->rb_while == 0)
-                            && r->rstp_version)) && !p->learn) {
+            } else if ((all_synced(r) && !p->agree) ||
+                    (p->proposed && p->agree)) {
                 p->port_role_transition_sm_state =
-                    PORT_ROLE_TRANSITION_SM_ROOT_LEARN_EXEC;
+                    PORT_ROLE_TRANSITION_SM_ROOT_AGREED_EXEC;
                 break;
             } else if ((p->fd_while == 0
                         || ((re_rooted(p) && p->rb_while == 0)
@@ -1596,18 +1595,19 @@ port_role_transition_sm(struct rstp_port *p)
                 p->port_role_transition_sm_state =
                     PORT_ROLE_TRANSITION_SM_ROOT_FORWARD_EXEC;
                 break;
-            } else if (p->proposed && !p->agree) {
+            } else if ((p->fd_while == 0
+                        || ((re_rooted(p) && p->rb_while == 0)
+                            && r->rstp_version)) && !p->learn) {
                 p->port_role_transition_sm_state =
-                    PORT_ROLE_TRANSITION_SM_ROOT_PROPOSED_EXEC;
+                    PORT_ROLE_TRANSITION_SM_ROOT_LEARN_EXEC;
                 break;
-            } else if ((all_synced(r) && !p->agree) ||
-                       (p->proposed && p->agree)) {
+            } else if (p->re_root && p->forward) {
                 p->port_role_transition_sm_state =
-                    PORT_ROLE_TRANSITION_SM_ROOT_AGREED_EXEC;
+                    PORT_ROLE_TRANSITION_SM_REROOTED_EXEC;
                 break;
-            } else if (!p->forward && !p->re_root) {
+            } else if (p->rr_while != p->designated_times.forward_delay) {
                 p->port_role_transition_sm_state =
-                    PORT_ROLE_TRANSITION_SM_REROOT_EXEC;
+                    PORT_ROLE_TRANSITION_SM_ROOT_PORT_EXEC;
                 break;
             }
         }
@@ -1679,34 +1679,34 @@ port_role_transition_sm(struct rstp_port *p)
         if (check_selected_role_change(p, ROLE_DESIGNATED)) {
             /* Global transition. */
         } else if (p->selected && !p->updt_info) {
-            if (((p->sync && !p->synced)
-                 || (p->re_root && p->rr_while != 0) || p->disputed)
-                && !p->oper_edge && (p->learn || p->forward)) {
+            if (p->rr_while == 0 && p->re_root) {
                 p->port_role_transition_sm_state =
-                    PORT_ROLE_TRANSITION_SM_DESIGNATED_DISCARD_EXEC;
-            } else if ((p->fd_while == 0 || p->agreed || p->oper_edge)
-                       && (p->rr_while == 0 || !p->re_root)
-                       && !p->sync && !p->learn) {
-                p->port_role_transition_sm_state =
-                    PORT_ROLE_TRANSITION_SM_DESIGNATED_LEARN_EXEC;
-            } else if ((p->fd_while == 0 || p->agreed || p->oper_edge)
-                       && (p->rr_while == 0 || !p->re_root)
-                       && !p->sync && (p->learn && !p->forward)) {
-                p->port_role_transition_sm_state =
-                    PORT_ROLE_TRANSITION_SM_DESIGNATED_FORWARD_EXEC;
-            } else if (!p->forward && !p->agreed && !p->proposing &&
-                       !p->oper_edge) {
-                p->port_role_transition_sm_state =
-                    PORT_ROLE_TRANSITION_SM_DESIGNATED_PROPOSE_EXEC;
+                    PORT_ROLE_TRANSITION_SM_DESIGNATED_RETIRED_EXEC;
             } else if ((!p->learning && !p->forwarding && !p->synced)
                        || (p->agreed && !p->synced)
                        || (p->oper_edge && !p->synced)
                        || (p->sync && p->synced)) {
                 p->port_role_transition_sm_state =
                     PORT_ROLE_TRANSITION_SM_DESIGNATED_SYNCED_EXEC;
-            } else if (p->rr_while == 0 && p->re_root) {
+            } else if (!p->forward && !p->agreed && !p->proposing &&
+                    !p->oper_edge) {
                 p->port_role_transition_sm_state =
-                    PORT_ROLE_TRANSITION_SM_DESIGNATED_RETIRED_EXEC;
+                    PORT_ROLE_TRANSITION_SM_DESIGNATED_PROPOSE_EXEC;
+            } else if ((p->fd_while == 0 || p->agreed || p->oper_edge)
+                       && (p->rr_while == 0 || !p->re_root)
+                       && !p->sync && (p->learn && !p->forward)) {
+                p->port_role_transition_sm_state =
+                    PORT_ROLE_TRANSITION_SM_DESIGNATED_FORWARD_EXEC;
+            } else if ((p->fd_while == 0 || p->agreed || p->oper_edge)
+                       && (p->rr_while == 0 || !p->re_root)
+                       && !p->sync && !p->learn) {
+                p->port_role_transition_sm_state =
+                    PORT_ROLE_TRANSITION_SM_DESIGNATED_LEARN_EXEC;
+            } else if (((p->sync && !p->synced)
+                        || (p->re_root && p->rr_while != 0) || p->disputed)
+                       && !p->oper_edge && (p->learn || p->forward)) {
+                p->port_role_transition_sm_state =
+                    PORT_ROLE_TRANSITION_SM_DESIGNATED_DISCARD_EXEC;
             }
         }
         break;
@@ -1788,17 +1788,17 @@ port_role_transition_sm(struct rstp_port *p)
                 && p->role == ROLE_BACKUP) {
                 p->port_role_transition_sm_state =
                     PORT_ROLE_TRANSITION_SM_BACKUP_PORT_EXEC;
-            } else if ((p->fd_while != forward_delay(p)) || p->sync
-                       || p->re_root || !p->synced) {
-                p->port_role_transition_sm_state =
-                    PORT_ROLE_TRANSITION_SM_ALTERNATE_PORT_EXEC;
-            } else if (p->proposed && !p->agree) {
-                p->port_role_transition_sm_state =
-                    PORT_ROLE_TRANSITION_SM_ALTERNATE_PROPOSED_EXEC;
             } else if ((all_synced(r) && !p->agree)
                        || (p->proposed && p->agree)) {
                 p->port_role_transition_sm_state =
                     PORT_ROLE_TRANSITION_SM_ALTERNATE_AGREED_EXEC;
+            } else if (p->proposed && !p->agree) {
+                p->port_role_transition_sm_state =
+                    PORT_ROLE_TRANSITION_SM_ALTERNATE_PROPOSED_EXEC;
+            } else if ((p->fd_while != forward_delay(p)) || p->sync
+                       || p->re_root || !p->synced) {
+                p->port_role_transition_sm_state =
+                    PORT_ROLE_TRANSITION_SM_ALTERNATE_PORT_EXEC;
             }
         }
         break;
@@ -1952,12 +1952,12 @@ port_state_transition_sm(struct rstp_port *p)
         p->port_state_transition_sm_state = PORT_STATE_TRANSITION_SM_LEARNING;
         /* no break */
     case PORT_STATE_TRANSITION_SM_LEARNING:
-        if (!p->learn) {
-            p->port_state_transition_sm_state =
-                PORT_STATE_TRANSITION_SM_DISCARDING_EXEC;
-        } else if (p->forward) {
+        if (p->forward) {
             p->port_state_transition_sm_state =
                 PORT_STATE_TRANSITION_SM_FORWARDING_EXEC;
+        } else if (!p->learn) {
+            p->port_state_transition_sm_state =
+                PORT_STATE_TRANSITION_SM_DISCARDING_EXEC;
         }
         break;
     case PORT_STATE_TRANSITION_SM_FORWARDING_EXEC:
@@ -2062,15 +2062,16 @@ topology_change_sm(struct rstp_port *p)
         p->topology_change_sm_state = TOPOLOGY_CHANGE_SM_LEARNING;
         /* no break */
     case TOPOLOGY_CHANGE_SM_LEARNING:
-        if (p->role != ROLE_ROOT && p->role != ROLE_DESIGNATED &&
-            !(p->learn || p->learning) && !(p->rcvd_tc || p->rcvd_tcn ||
-                                            p->rcvd_tc_ack || p->tc_prop)) {
-            p->topology_change_sm_state = TOPOLOGY_CHANGE_SM_INACTIVE_EXEC;
+        if ((p->role == ROLE_ROOT || p->role == ROLE_DESIGNATED)
+                               && p->forward && !p->oper_edge) {
+            p->topology_change_sm_state = TOPOLOGY_CHANGE_SM_DETECTED_EXEC;
         } else if (p->rcvd_tc || p->rcvd_tcn || p->rcvd_tc_ack || p->tc_prop) {
             p->topology_change_sm_state = TOPOLOGY_CHANGE_SM_LEARNING_EXEC;
-        } else if ((p->role == ROLE_ROOT || p->role == ROLE_DESIGNATED)
-                   && p->forward && !p->oper_edge) {
-            p->topology_change_sm_state = TOPOLOGY_CHANGE_SM_DETECTED_EXEC;
+        } else if (p->role != ROLE_ROOT && p->role != ROLE_DESIGNATED
+                   && !(p->learn || p->learning)
+                   && !(p->rcvd_tc || p->rcvd_tcn
+                        || p->rcvd_tc_ack || p->tc_prop)) {
+            p->topology_change_sm_state = TOPOLOGY_CHANGE_SM_INACTIVE_EXEC;
         }
         break;
     case TOPOLOGY_CHANGE_SM_DETECTED_EXEC:
@@ -2083,17 +2084,17 @@ topology_change_sm(struct rstp_port *p)
         p->topology_change_sm_state = TOPOLOGY_CHANGE_SM_ACTIVE;
         /* no break */
     case TOPOLOGY_CHANGE_SM_ACTIVE:
-        if ((p->role != ROLE_ROOT && p->role != ROLE_DESIGNATED)
-            || p->oper_edge) {
-            p->topology_change_sm_state = TOPOLOGY_CHANGE_SM_LEARNING_EXEC;
-        } else if (p->rcvd_tcn) {
-            p->topology_change_sm_state = TOPOLOGY_CHANGE_SM_NOTIFIED_TCN_EXEC;
-        } else if (p->rcvd_tc) {
-            p->topology_change_sm_state = TOPOLOGY_CHANGE_SM_NOTIFIED_TC_EXEC;
+        if (p->rcvd_tc_ack) {
+            p->topology_change_sm_state = TOPOLOGY_CHANGE_SM_ACKNOWLEDGED_EXEC;
         } else if (p->tc_prop && !p->oper_edge) {
             p->topology_change_sm_state = TOPOLOGY_CHANGE_SM_PROPAGATING_EXEC;
-        } else if (p->rcvd_tc_ack) {
-            p->topology_change_sm_state = TOPOLOGY_CHANGE_SM_ACKNOWLEDGED_EXEC;
+        } else if (p->rcvd_tc) {
+            p->topology_change_sm_state = TOPOLOGY_CHANGE_SM_NOTIFIED_TC_EXEC;
+        } else if (p->rcvd_tcn) {
+            p->topology_change_sm_state = TOPOLOGY_CHANGE_SM_NOTIFIED_TCN_EXEC;
+        } else if ((p->role != ROLE_ROOT && p->role != ROLE_DESIGNATED)
+                   || p->oper_edge) {
+            p->topology_change_sm_state = TOPOLOGY_CHANGE_SM_LEARNING_EXEC;
         }
         break;
     case TOPOLOGY_CHANGE_SM_ACKNOWLEDGED_EXEC:
