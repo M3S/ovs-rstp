@@ -113,6 +113,8 @@ static void rstp_port_set_admin_edge__(struct rstp_port *, bool admin_edge)
     OVS_REQUIRES(rstp_mutex);
 static void rstp_port_set_auto_edge__(struct rstp_port *, bool auto_edge)
     OVS_REQUIRES(rstp_mutex);
+static void update_port_oper_point_to_point__(struct rstp_port *)
+    OVS_REQUIRES(rstp_mutex);
 static void rstp_port_set_admin_point_to_point_mac__(struct rstp_port *,
         enum rstp_admin_point_to_point_mac_state admin_p2p_mac_state)
     OVS_REQUIRES(rstp_mutex);
@@ -1235,6 +1237,30 @@ rstp_port_set_auto_edge__(struct rstp_port *port, bool auto_edge)
     }
 }
 
+static void update_port_oper_point_to_point__(struct rstp_port *port)
+    OVS_REQUIRES(rstp_mutex)
+{
+    if (port->admin_point_to_point_mac == RSTP_ADMIN_P2P_MAC_FORCE_TRUE) {
+        rstp_port_set_oper_point_to_point_mac__(port,
+                RSTP_OPER_P2P_MAC_STATE_ENABLED);
+    } else if (port->admin_point_to_point_mac == RSTP_ADMIN_P2P_MAC_FORCE_FALSE) {
+        rstp_port_set_oper_point_to_point_mac__(port,
+                RSTP_OPER_P2P_MAC_STATE_DISABLED);
+    } else if (port->admin_point_to_point_mac == RSTP_ADMIN_P2P_MAC_AUTO) {
+        /* If adminPointToPointMAC is set to Auto, then the value of
+         * operPointToPointMAC is determined in accordance with the
+         * specific procedures defined for the MAC entity concerned, as
+         * defined in 6.5. If these procedures determine that the MAC
+         * entity is connected to a point-to-point LAN, then
+         * operPointToPointMAC is set TRUE; otherwise it is set FALSE.
+         * In the absence of a specific definition of how to determine
+         * whether the MAC is connected to a point-to-point LAN or not,
+         * the value of operPointToPointMAC shall be FALSE. */
+        rstp_port_set_oper_point_to_point_mac__(port,
+                RSTP_OPER_P2P_MAC_STATE_DISABLED);
+    }
+}
+
 /* Sets the port admin_point_to_point_mac parameter. */
 static void rstp_port_set_admin_point_to_point_mac__(struct rstp_port *port,
         enum rstp_admin_point_to_point_mac_state admin_p2p_mac_state)
@@ -1242,29 +1268,12 @@ static void rstp_port_set_admin_point_to_point_mac__(struct rstp_port *port,
 {
     VLOG_DBG("%s, port %u: set RSTP port admin-point-to-point-mac to %d",
             port->rstp->name, port->port_number, admin_p2p_mac_state);
-    if (port->admin_point_to_point_mac != admin_p2p_mac_state) {
-        if (admin_p2p_mac_state == RSTP_ADMIN_P2P_MAC_FORCE_TRUE) {
-            port->admin_point_to_point_mac = admin_p2p_mac_state;
-            rstp_port_set_oper_point_to_point_mac__(
-                port, RSTP_OPER_P2P_MAC_STATE_ENABLED);
-        } else if (admin_p2p_mac_state == RSTP_ADMIN_P2P_MAC_FORCE_FALSE) {
-            port->admin_point_to_point_mac = admin_p2p_mac_state;
-            rstp_port_set_oper_point_to_point_mac__(
-                port, RSTP_OPER_P2P_MAC_STATE_DISABLED);
-        } else if (admin_p2p_mac_state == RSTP_ADMIN_P2P_MAC_AUTO) {
-            /* If adminPointToPointMAC is set to Auto, then the value of
-             * operPointToPointMAC is determined in accordance with the
-             * specific procedures defined for the MAC entity concerned, as
-             * defined in 6.5. If these procedures determine that the MAC
-             * entity is connected to a point-to-point LAN, then
-             * operPointToPointMAC is set TRUE; otherwise it is set FALSE.
-             * In the absence of a specific definition of how to determine
-             * whether the MAC is connected to a point-to-point LAN or not,
-             * the value of operPointToPointMAC shall be FALSE. */
-            port->admin_point_to_point_mac = admin_p2p_mac_state;
-            rstp_port_set_oper_point_to_point_mac__(
-                port, RSTP_OPER_P2P_MAC_STATE_DISABLED);
-        }
+    if (port->admin_point_to_point_mac != admin_p2p_mac_state
+        && (admin_p2p_mac_state == RSTP_ADMIN_P2P_MAC_FORCE_TRUE
+            || admin_p2p_mac_state == RSTP_ADMIN_P2P_MAC_FORCE_FALSE
+            || admin_p2p_mac_state == RSTP_ADMIN_P2P_MAC_AUTO)) {
+        port->admin_point_to_point_mac = admin_p2p_mac_state;
+        update_port_oper_point_to_point__(port);
     }
 }
 
