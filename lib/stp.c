@@ -699,17 +699,12 @@ stp_learn_in_state(enum stp_state state)
 }
 
 /* Returns true if 'state' is one in which bpdus should be forwarded on a
- * port, false otherwise.
- *
- * Returns true if 'state' is STP_DISABLED, since in that case the port does
- * not generate the bpdu and should just forward it (e.g. patch port on pif
- * bridge). */
+ * port, false otherwise. */
 bool
 stp_should_forward_bpdu(enum stp_state state)
 {
     return (state &
-            ( STP_DISABLED | STP_LISTENING | STP_LEARNING
-              | STP_FORWARDING)) != 0;
+            (STP_LISTENING | STP_LEARNING | STP_FORWARDING)) != 0;
 }
 
 /* Returns the name for the given 'role' (for use in debugging and log

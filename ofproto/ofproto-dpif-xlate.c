@@ -1517,7 +1517,9 @@ static bool
 xport_stp_should_forward_bpdu(const struct xport *xport)
 {
     struct stp_port *sp = xport_get_stp_port(xport);
-    return stp_should_forward_bpdu(sp ? stp_port_get_state(sp) : STP_DISABLED);
+    return sp
+        ? stp_should_forward_bpdu(stp_port_get_state(sp))
+        : true;
 }
 
 /* Returns true if STP should process 'flow'.  Sets fields in 'wc' that
@@ -1578,9 +1580,11 @@ xport_rstp_forward_state(const struct xport *xport)
 }
 
 static bool
-xport_rstp_should_manage_bpdu(const struct xport *xport)
+xport_rstp_should_forward_bpdu(const struct xport *xport)
 {
-    return rstp_should_manage_bpdu(xport_get_rstp_port_state(xport));
+    return xport->xbridge->rstp && xport->rstp_port
+        ? rstp_should_forward_bpdu(xport_get_rstp_port_state(xport))
+        : true;
 }
 
 static void
@@ -3427,7 +3431,7 @@ compose_output_action__(struct xlate_ctx *ctx, ofp_port_t ofp_port,
     } else if (check_stp) {
         if (is_stp(&ctx->base_flow)) {
             if (!xport_stp_should_forward_bpdu(xport) &&
-                !xport_rstp_should_manage_bpdu(xport)) {
+                !xport_rstp_should_forward_bpdu(xport)) {
                 if (ctx->xbridge->stp != NULL) {
                     xlate_report(ctx, OFT_WARN,
                                  "STP not in listening state, "

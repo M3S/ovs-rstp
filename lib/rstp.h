@@ -135,7 +135,7 @@ const char *rstp_state_name(enum rstp_state);
 const char *rstp_port_role_name(enum rstp_port_role);
 static inline bool rstp_forward_in_state(enum rstp_state);
 static inline bool rstp_learn_in_state(enum rstp_state);
-static inline bool rstp_should_manage_bpdu(enum rstp_state state);
+static inline bool rstp_should_forward_bpdu(enum rstp_state state);
 
 void rstp_init(void)
     OVS_EXCLUDED(rstp_mutex);
@@ -275,7 +275,7 @@ void rstp_port_set_state(struct rstp_port *p, enum rstp_state state)
  * and transmitted on a port, false otherwise.
  */
 static inline bool
-rstp_should_manage_bpdu(enum rstp_state state)
+rstp_should_forward_bpdu(enum rstp_state state)
 {
     return (state == RSTP_DISCARDING || state == RSTP_LEARNING ||
             state == RSTP_FORWARDING);
